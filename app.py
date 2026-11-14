@@ -22,7 +22,15 @@ import plotly.graph_objects as go
 from pyproj import Transformer
 from PIL import Image
 
-st.set_page_config(page_title="SinkWatch · NASA Space Apps 2026 · Dancing with the SARs", page_icon="🛰️",
+ICON_PATH = "assets/sinkwatch_icon.png"
+try:
+    _ICON = Image.open(ICON_PATH)
+    with open(ICON_PATH, "rb") as _f:
+        ICON_B64 = base64.b64encode(_f.read()).decode()
+except OSError:
+    _ICON, ICON_B64 = "🛰️", ""
+
+st.set_page_config(page_title="SinkWatch · NASA Space Apps 2026 · Dancing with the SARs", page_icon=_ICON,
                    layout="wide", initial_sidebar_state="collapsed")
 
 APP_DATA = "app_data/sinkwatch_quetta.npz"
@@ -46,8 +54,10 @@ html, body, [class*="css"] {{font-family: "Inter", "Segoe UI", system-ui, sans-s
 .sw-topbar {{display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:1rem;
   background:#0f1b2d; color:#fff; margin:0 -1.2rem .6rem -1.2rem; padding:.7rem 1.4rem;}}
 .sw-brand {{display:flex; align-items:center; gap:.7rem;}}
-.sw-logo {{width:34px; height:34px; border-radius:8px; background:{RED}; display:flex;
-  align-items:center; justify-content:center; font-weight:700; font-size:16px; color:#fff;}}
+.sw-logo {{width:54px; height:54px; border-radius:12px; background:{RED}; display:flex; overflow:hidden;
+  align-items:center; justify-content:center; font-weight:700; font-size:16px; color:#fff;
+  box-shadow:0 0 0 1px rgba(255,255,255,.15), 0 4px 14px rgba(249,112,102,.35);}}
+.sw-logo img {{width:100%; height:100%; object-fit:cover; display:block;}}
 .sw-title {{font-size:1.7rem; font-weight:700; letter-spacing:-.02em; line-height:1.1;}}
 .sw-center {{text-align:center;}}
 .sw-sub {{font-size:.78rem; color:#a9b6c8;}}
@@ -93,7 +103,6 @@ div[data-baseweb="tab-highlight"] {{background:{ACCENT}; height:2px;}}
 @keyframes swBlink {{0%,100% {{opacity:1;}} 50% {{opacity:.25;}}}}
 @media (prefers-reduced-motion: no-preference) {{
   [class*="st-key-panel_"] {{animation: swFade .55s ease both;}}
-  .sw-logo {{animation: swPulse 2.2s infinite;}}
   .sw-live {{animation: swBlink 1.6s infinite;}}
   .sw-hero-num {{animation: swFade .8s ease both;}}
 }}
@@ -450,7 +459,7 @@ st.markdown(
     f"""
 <div class="sw-topbar">
   <div class="sw-brand">
-    <div class="sw-logo">S</div>
+    <div class="sw-logo">{('<img src="data:image/png;base64,' + ICON_B64 + '" alt="SinkWatch logo">') if ICON_B64 else 'S'}</div>
     <div class="sw-sub"><span class="sw-live"></span>Land subsidence monitor<br>Quetta, Pakistan</div>
   </div>
   <div class="sw-center">
