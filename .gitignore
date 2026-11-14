@@ -1,0 +1,20 @@
+# Python environment (never upload)
+.venv/
+__pycache__/
+*.pyc
+
+# Earthdata login / secrets (never upload)
+.netrc
+_netrc
+.env
+
+# Large intermediate files (re-creatable with the scripts)
+data/quetta_041A/pair_*.tif
+data/quetta_041A/pair_*_geometry.npz
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+data/population/

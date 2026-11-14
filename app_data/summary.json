@@ -1,0 +1,31 @@
+{
+  "dates": [
+    "20260617",
+    "20260629",
+    "20260711",
+    "20260723",
+    "20260816",
+    "20260828",
+    "20260909",
+    "20260921",
+    "20261003",
+    "20261015"
+  ],
+  "pixel_km2": 0.0064,
+  "population_source": "https://worldpop-public-data.soton.ac.uk/GIS/Population/Global_2000_2020_Constrained/2020/BSGM/PAK/pak_ppp_2020_UNadj_constrained.tif",
+  "latlon_bounds": [
+    29.993839985156725,
+    66.79077936871779,
+    30.406457146305186,
+    67.20803267774433
+  ],
+  "valley_floor_km2": 690.1,
+  "area_km2_faster_than_2cm": 164.28,
+  "people_faster_than_2cm": 375508,
+  "area_km2_faster_than_5cm": 98.55,
+  "people_faster_than_5cm": 268506,
+  "area_km2_faster_than_8cm": 55.99,
+  "people_faster_than_8cm": 177947,
+  "area_km2_faster_than_10cm": 35.46,
+  "people_faster_than_10cm": 118731
+}

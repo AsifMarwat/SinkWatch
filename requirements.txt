@@ -1,0 +1,8 @@
+# Web app (used by Streamlit Community Cloud)
+streamlit
+folium
+streamlit-folium
+plotly
+numpy
+pyproj
+pillow

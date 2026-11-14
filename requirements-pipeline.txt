@@ -1,0 +1,9 @@
+# Data pipeline (NISAR streaming + processing) - run locally
+-r requirements.txt
+earthaccess
+h5py
+fsspec
+aiohttp
+rasterio
+matplotlib
+requests

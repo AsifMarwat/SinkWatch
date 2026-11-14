@@ -1,0 +1,35 @@
+{
+  "granule": "NISAR_L2_PR_GUNW_030_041_A_017_031_4000_SH_20260909T004627_20260909T004701_20260921T004627_20260921T004701_P05023_N_F_J_001.h5",
+  "reference_date": "20260909",
+  "secondary_date": "20260921",
+  "temporal_baseline_days": 12,
+  "center_frequency_hz": 1239000000.0,
+  "wavelength_m": 0.2419632429378531,
+  "epsg": 32642,
+  "track": 41,
+  "frame": 17,
+  "orbit_pass_direction": "Ascending",
+  "look_direction": "Left",
+  "window_rows": [
+    2521,
+    3084
+  ],
+  "window_cols": [
+    1140,
+    1632
+  ],
+  "pixel_spacing_m": [
+    80.0,
+    -80.0
+  ],
+  "bbox_lonlat": [
+    66.8,
+    30.0,
+    67.2,
+    30.4
+  ],
+  "wetTroposphericCorrectionApplied": "True",
+  "hydrostaticTroposphericCorrectionApplied": "True",
+  "rangeIonosphericCorrectionApplied": "True",
+  "azimuthIonosphericCorrectionApplied": "True"
+}
