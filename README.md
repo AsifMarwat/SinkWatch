@@ -1,10 +1,18 @@
+<p align="center"><img src="docs/sinkwatch_logo_premium.png" width="360" alt="SinkWatch logo"></p>
+
 # SinkWatch: Seeing the Ground Move from Space
 
 **NASA Space Apps Challenge 2026 · Challenge: _Dancing with the SARs_**
 
+🌐 **Live app:** https://sinkwatch.streamlit.app · 🎬 **30-second demo:** https://www.youtube.com/watch?v=qQgWt6jhvS8
+
 SinkWatch uses NASA-ISRO **NISAR** L-band radar to measure where a city is sinking, how fast it is sinking, and how many people live on that ground. The first city it covers is **Quetta, Pakistan**, one of the fastest-sinking cities in the world. Groundwater is pumped out faster than it refills, so the soft valley sediments compact and the ground drops.
 
-![SinkWatch app](docs/app_screenshot.jpg)
+![SinkWatch app](docs/app_interface.jpg)
+
+*Move the cursor anywhere: a live readout shows the sinking speed, how many people live nearby, and how reliable the trend is.*
+
+![Live inspector in fullscreen](docs/app_live_inspector.jpg)
 
 ## Key results (Quetta, 17 Jun to 15 Oct 2026)
 
@@ -16,7 +24,7 @@ SinkWatch uses NASA-ISRO **NISAR** L-band radar to measure where a city is sinki
 | People living on ground sinking > 5 cm/yr | **≈ 269,000** (WorldPop 2020) |
 | People living on ground sinking > 10 cm/yr | **≈ 119,000** |
 
-**Validation:** independent studies using Sentinel-1 InSAR and GPS report Quetta valley subsidence of **3.2 to 16 cm/yr**, with central Quetta at about **16 cm/yr** since 2016 (Kakar et al., 2024 and 2025). SinkWatch finds the same hotspot at the same rates using only 120 days of brand-new NISAR data.
+**Comparison with published studies:** independent studies using Sentinel-1 InSAR and GPS report Quetta valley subsidence of **3.2 to 16 cm/yr**, with central Quetta at about **16 cm/yr** since 2016 (Kakar et al., 2024 and 2025). SinkWatch finds the same hotspot with rates consistent with these studies, using only 120 days of brand-new NISAR data.
 
 ![Velocity map](docs/quetta_velocity_overview.png)
 
@@ -33,11 +41,13 @@ SinkWatch uses NASA-ISRO **NISAR** L-band radar to measure where a city is sinki
 
 ## App features
 
-- An interactive map of sinking speed over satellite, street or dark basemaps
-- **Click anywhere** to see that spot's sinking speed, elevation, the number of people within 500 m, and a movement-over-time chart
-- Exposure tables showing people and area for each risk threshold
-- A validation chart comparing SinkWatch with published studies
-- Method and limitations written out in plain language
+- An interactive map of sinking speed over light, satellite, street or dark basemaps, with **light and dark mode**
+- **Live cursor readout:** move anywhere to see the sinking speed, status and people nearby; click to pin a point
+- **Fullscreen dashboard** with a live inspector (speed gauge, elevation, people within 500 m, trend confidence R², movement chart) and a Quetta summary card
+- **Time-lapse** of cumulative sinking from June to October 2026
+- **Exposure** tables and chart: people and area for each risk threshold
+- **Analyze your data:** upload any velocity GeoTIFF (from SinkWatch, ASF HyP3, LiCSBAS, MintPy…) and get the map, sinking area, distribution and a click inspector instantly
+- A chart comparing SinkWatch with published studies, plus the method, limitations and roadmap in plain language
 
 ## Run it
 
@@ -69,11 +79,18 @@ streamlit run app.py
 
 Groundwater-driven subsidence threatens buildings, pipelines, roads and drainage in cities from Jakarta and Mexico City to Tehran and Quetta. Most of these cities have no ground monitoring network. NISAR revisits every location every 12 days, free and open. SinkWatch shows how that data can become a map a city engineer or disaster agency can act on, and the same pipeline works for any city NISAR covers.
 
+## Roadmap
+
+- **Now:** Quetta from NISAR, plus *Analyze your data* for any velocity map
+- **Next:** Jakarta, Tehran and Mexico City through the same pipeline
+- **Then:** pick any city on Earth and SinkWatch processes the latest NISAR pass automatically
+- **Later:** alerts when a neighbourhood starts sinking faster
+
 ## Data and credits
 
 - NASA-ISRO NISAR L-band GUNW, provisional (NASA/JPL, via ASF DAAC)
 - Copernicus GLO-30 DEM (ESA)
 - WorldPop 2020 Pakistan population, constrained and UN-adjusted (University of Southampton)
-- Validation sources: Kakar et al. (2025) *Natural Hazards*, doi:10.1007/s11069-025-07226-y; Kakar et al. (2024) *Remote Sensing* 16(9):1521
+- Comparison sources: Kakar et al. (2025) *Natural Hazards*, doi:10.1007/s11069-025-07226-y; Kakar et al. (2024) *Remote Sensing* 16(9):1521
 
-Built solo by **Muhammad Asif** for the NASA Space Apps Challenge 2026. MIT License.
+Built solo by **Muhammad Asif** (Pakistan) for the NASA Space Apps Challenge 2026, with help from an AI assistant (Claude) for coding and design. MIT License.
