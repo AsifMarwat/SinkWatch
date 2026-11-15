@@ -924,5 +924,6 @@ with tab_about:
                 "- **Then:** pick any city on Earth and SinkWatch processes the latest NISAR pass automatically\n"
                 "- **Later:** alerts when a neighbourhood starts sinking faster")
         st.markdown("<div class='sw-note'>Built solo for NASA Space Apps Challenge 2026 · Dancing with the SARs · "
-                    "Data: NASA-ISRO NISAR (ASF DAAC), Copernicus GLO-30 DEM, WorldPop 2020.</div>",
+                    "Data: NASA-ISRO NISAR (ASF DAAC), Copernicus GLO-30 DEM, WorldPop 2020. "
+                    "Code and visuals created with SI assistance (Claude by Anthropic); all results come from real NISAR data.</div>",
                     unsafe_allow_html=True)
