@@ -276,7 +276,15 @@ def hud_payload(step=3):
         a = np.where(np.isfinite(a) & inside, a, nodata).astype(dtype)
         return base64.b64encode(a.tobytes()).decode()
 
-    vel = data["vel_utm"][row, col]
+    # 3x3 median (240 m) so the hover value matches what the map shows, not one noisy pixel
+    v = data["vel_utm"]
+    vp = np.pad(v, 1, constant_values=np.nan)
+    with np.errstate(all="ignore"):
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            v3 = np.nanmedian(np.stack([vp[i:i + H, j:j + W] for i in range(3) for j in range(3)]), axis=0)
+    vel = v3[row, col]
     stack = data["stack_utm"][:, row, col]
     return {
         "bounds": [s, w, n, e], "ny": ny, "nx": nx, "dates": data["dates"],
@@ -383,7 +391,11 @@ class FullscreenHUD(MacroElement):
   ".sw-hud .needle{position:absolute;top:-4px;width:3px;height:16px;background:#fff;border-radius:2px;transition:left .15s}"+
   ".sw-hud .gl{display:flex;justify-content:space-between;font-size:10px;color:#8ea0b8}"+
   ".sw-hud .badge{display:inline-block;font-size:11px;font-weight:600;padding:3px 8px;border-radius:6px;margin-top:8px}"+
-  ".sw-hud .pin{font-size:10px;color:#8ea0b8;margin-top:6px}";
+  ".sw-hud .pin{font-size:10px;color:#8ea0b8;margin-top:6px}"+
+  ".sw-tip{position:absolute;z-index:1000;pointer-events:none;display:none;font-family:Inter,Segoe UI,system-ui,sans-serif;"+
+  "background:rgba(15,27,45,.94);color:#e6ecf5;border:1px solid #2c3e5a;border-radius:10px;padding:8px 11px;"+
+  "box-shadow:0 6px 18px rgba(0,0,0,.35);white-space:nowrap;font-size:12px;line-height:1.35}"+
+  ".sw-tip b{font-size:18px;font-variant-numeric:tabular-nums}.sw-tip .s{color:#8ea0b8;font-size:11px}";
   document.head.appendChild(css);
 
   function card(pos, w){var c=L.control({position:pos}); c.onAdd=function(){var d=L.DomUtil.create('div','sw-hud'); d.style.width=w+'px'; L.DomEvent.disableClickPropagation(d); L.DomEvent.disableScrollPropagation(d); return d;}; c.addTo(map); return c.getContainer();}
@@ -423,8 +435,23 @@ class FullscreenHUD(MacroElement):
       "<div class='row' style='margin-top:10px'><span>Elevation</span><b>"+(elev[i]===-32768?'–':elev[i].toLocaleString()+' m')+"</b></div>"+
       "<div class='row'><span>People within 500 m</span><b>"+(P.has_pop&&pop[i]!==-32768?pop[i].toLocaleString():'n/a')+"</b></div>"+
       "<div class='row'><span>Trend confidence</span><b>"+(r2>=0.6?'High':(r2>=0.3?'Medium':'Low'))+" · R² "+r2.toFixed(2)+"</b></div>"+
-      spark(i)+"<div class='pin'>"+(pinned?"Click elsewhere to move the pin":"Click the map to pin a point")+"</div>";}
-  map.on('mousemove',function(e){if(!pinned)render(e.latlng.lat,e.latlng.lng);});
+      spark(i)+"<div class='pin'>"+(pinned?"Click to move the pin · double-click to go live":"Click the map to pin a point")+"</div>";}
+  var tip=L.DomUtil.create('div','sw-tip',map.getContainer());
+  function tipAt(e){
+    var i=idx(e.latlng.lat,e.latlng.lng);
+    if(i<0||vel[i]===-32768){tip.style.display='none';return;}
+    var v=vel[i]/10, col=v<=-8?'#f97066':(v<=-3?'#fdb022':(v>=3?'#93c5fd':'#e6ecf5'));
+    var word=!valley[i]?'Bedrock / mountain':(v<=-8?'Fast sinking':(v<=-3?'Sinking':(v>=3?'Rising / noise':'Stable')));
+    var ppl=(P.has_pop&&pop[i]!==-32768)?pop[i].toLocaleString()+' people nearby':'';
+    tip.innerHTML="<b style='color:"+col+"'>"+(v>0?'+':(v<0?'\u2212':''))+Math.abs(v).toFixed(1)+"</b> cm/yr"+
+      "<div class='s'>"+word+(ppl?' · '+ppl:'')+"</div>";
+    var pt=e.containerPoint, W=map.getSize().x, H=map.getSize().y, tw=tip.offsetWidth||180, th=tip.offsetHeight||44;
+    var x=pt.x+18, y=pt.y+18; if(x+tw>W-8)x=pt.x-tw-14; if(y+th>H-8)y=pt.y-th-14;
+    tip.style.left=x+'px'; tip.style.top=y+'px'; tip.style.display='block';
+  }
+  map.on('mousemove',function(e){tipAt(e); if(!pinned)render(e.latlng.lat,e.latlng.lng);});
+  map.on('mouseout',function(){tip.style.display='none';});
+  map.on('dblclick',function(e){pinned=false; if(pinMarker){map.removeLayer(pinMarker);pinMarker=null;} render(e.latlng.lat,e.latlng.lng);});
   map.on('click',function(e){pinned=true; if(pinMarker)map.removeLayer(pinMarker);
     pinMarker=L.circleMarker(e.latlng,{radius:7,color:'#fff',weight:2,fillColor:'#f97066',fillOpacity:1}).addTo(map);
     render(e.latlng.lat,e.latlng.lng);});
