@@ -538,7 +538,7 @@ H(f"""
     <div class="lead">From Jakarta to Tehran to Quetta, groundwater pumping is making cities sink, often unnoticed until
       buildings crack. SinkWatch turns free NASA–ISRO NISAR radar into a map anyone can read: where the ground is sinking,
       how fast, and who lives on it.</div>
-    <a class="cta" href="#map">Explore the first map ↓</a><a class="cta2" href="#how">How it works →</a>
+    <a class="cta" href="#quetta">Explore the first map ↓</a><a class="cta2" href="#how">How it works →</a>
   </div>
   <div class="hero-art reveal"><img src="{icon_src}" alt="SinkWatch"></div>
 </div>
@@ -551,7 +551,7 @@ H(f"""
 
 # ------------------------------------------------------------------ map
 H(f"""
-<div class="sec" id="map"><div class="wrap">
+<div class="sec" id="quetta"><div class="wrap">
   <div class="maphead">
     <div><div class="kicker">First city · Quetta, Pakistan</div>
       <div class="h2">Quetta is sinking up to <span class="grad">{abs(fastest):.1f} cm</span> a year.</div>
@@ -564,6 +564,7 @@ H(f"""
 </div></div>
 """)
 
+H('<div id="map" style="position:relative; top:-12px"></div>')
 with center_cols():
     sp, settings = st.columns([0.8, 0.2])
     with settings:
@@ -583,7 +584,7 @@ with center_cols():
         "Dark": ("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
                  "Esri, HERE, Garmin, OpenStreetMap contributors"),
     }[basemap]
-    m = folium.Map(location=[lat0, lon0], zoom_start=11, tiles=None, control_scale=True)
+    m = folium.Map(location=[30.20, lon0 + 0.10], zoom_start=11.5, zoom_snap=0.25, tiles=None, control_scale=True)
     folium.TileLayer(tiles=tiles[0], attr=tiles[1], name=basemap).add_to(m)
     folium.raster_layers.ImageOverlay(image=overlay_png(threshold, opacity, sinking_only, valley_only),
                                       bounds=[[s, w], [n, e]], interactive=False).add_to(m)
@@ -593,7 +594,6 @@ with center_cols():
     Fullscreen(title="Fullscreen dashboard", title_cancel="Exit fullscreen").add_to(m)
     MapHUD(hud_payload(), {"city": f"{abs(city_vel):.1f}", "fast": f"{abs(fastest):.1f}",
                            "area": f"{area(5):,.0f}", "people": f"{people(5):,.0f}"}, lat0, lon0).add_to(m)
-    m.fit_bounds([[s, w], [n, e]], padding_top_left=(10, 10), padding_bottom_right=(300, 10))
     st_folium(m, key=f"v2_map_{basemap}", height=680, use_container_width=True, returned_objects=[])
 
 # ------------------------------------------------------------------ impact
