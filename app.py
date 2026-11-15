@@ -1,9 +1,9 @@
 """
 SinkWatch - Seeing the ground move from space.
-Streamlit web app for NASA Space Apps 2026 (Dancing with the SARs).
+Streamlit web app for NASA Space Apps 2026 (Dancing with the SARs). v2: story-style layout.
 
 Run:
-  python -m streamlit run app.py
+  python -m streamlit run app_v2.py
 """
 
 import io
@@ -34,117 +34,142 @@ except OSError:
 st.set_page_config(page_title="SinkWatch · NASA Space Apps 2026 · Dancing with the SARs", page_icon=_ICON,
                    layout="wide", initial_sidebar_state="collapsed")
 
+
+def H(html):
+    """Render an HTML block safely (no blank lines or indentation, which would break Streamlit's markdown)."""
+    st.markdown("\n".join(l.strip() for l in html.splitlines() if l.strip()), unsafe_allow_html=True)
+
 APP_DATA = "app_data/sinkwatch_quetta.npz"
 CENTRE = (30.19, 67.01)  # Quetta city centre (lat, lon)
 VMAX = 15.0               # colour scale limit, cm/yr
 ACCENT = "#0b63ce"
 RED = "#d92d20"
 
-# ------------------------------------------------------------------ theme toggle
-DARK = st.toggle("Dark mode", value=False, key="dark")
 
-# ------------------------------------------------------------------ style
-st.markdown(
-    f"""
+# ------------------------------------------------------------------ style (v2) with light / dark mode
+LIGHT = st.toggle("Light mode", value=False, key="light")
+DARK = not LIGHT
+THEME = {
+    False: dict(bg="#05080f", text="#c9d4e3", head="#ffffff", muted="#93a3ba", muted2="#8798b0", faint="#6f8098",
+                line="rgba(255,255,255,.08)", card="linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.015))",
+                cardb="rgba(255,255,255,.08)", nav="rgba(5,8,15,.72)", link="#9fb0c8", hot="#ff8a7a", accent="#f97066",
+                glow1="rgba(124,58,237,.20)", glow2="rgba(14,165,233,.14)", stars=".55", input="#0d1524",
+                quote="rgba(249,112,102,.07)", quoteb="rgba(249,112,102,.2)", chipb="rgba(255,255,255,.1)", ring="#05080f"),
+    True: dict(bg="#f6f8fb", text="#334155", head="#0b1220", muted="#52627a", muted2="#64748b", faint="#7a8aa0",
+               line="rgba(15,23,42,.08)", card="#ffffff", cardb="rgba(15,23,42,.08)", nav="rgba(255,255,255,.82)",
+               link="#475569", hot="#e5484d", accent="#e5484d", glow1="rgba(124,58,237,.10)", glow2="rgba(14,165,233,.12)",
+               stars="0", input="#ffffff", quote="rgba(229,72,77,.06)", quoteb="rgba(229,72,77,.22)",
+               chipb="rgba(15,23,42,.12)", ring="#f6f8fb"),
+}[LIGHT]
+H("<style>:root{" + "".join(f"--{k}:{v};" for k, v in THEME.items()) + "}</style>")
+H("""
 <style>
-#MainMenu, header[data-testid="stHeader"], footer {{visibility: hidden; height: 0;}}
-[data-testid="stSidebar"], [data-testid="collapsedControl"] {{display: none;}}
-.block-container {{padding: 0 1.2rem 1rem 1.2rem; max-width: 100%;}}
-html, body, [class*="css"] {{font-family: "Inter", "Segoe UI", system-ui, sans-serif;}}
-
-.sw-topbar {{display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:1rem;
-  background:#0f1b2d; color:#fff; margin:0 -1.2rem .6rem -1.2rem; padding:.7rem 1.4rem;}}
-.sw-brand {{display:flex; align-items:center; gap:.7rem;}}
-.sw-logo {{width:54px; height:54px; border-radius:12px; background:{RED}; display:flex; overflow:hidden;
-  align-items:center; justify-content:center; font-weight:700; font-size:16px; color:#fff;
-  box-shadow:0 0 0 1px rgba(255,255,255,.15), 0 4px 14px rgba(249,112,102,.35);}}
-.sw-logo img {{width:100%; height:100%; object-fit:cover; display:block;}}
-.sw-title {{font-size:1.7rem; font-weight:700; letter-spacing:-.02em; line-height:1.1;}}
-.sw-center {{text-align:center;}}
-.sw-sub {{font-size:.78rem; color:#a9b6c8;}}
-.sw-event {{font-size:.68rem; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:#f97066; margin-bottom:.15rem;}}
-.sw-tag {{font-size:.82rem; color:#a9b6c8; margin-top:.1rem;}}
-.sw-chips {{display:flex; gap:.35rem; flex-wrap:wrap; justify-content:flex-end; max-width:520px; justify-self:end;}}
-.sw-chip {{font-size:.72rem; padding:.2rem .55rem; border-radius:999px; background:#1c2b42;
-  border:1px solid #2c3e5a; color:#d7e0ec; white-space:nowrap;}}
-.sw-chip.warn {{background:#3a2a0b; border-color:#6b4c12; color:#f6d38a;}}
-
-div[data-baseweb="tab-list"] {{gap:0; border-bottom:1px solid #e3e8ef; background:#f7f9fc;
-  margin:0 -1.2rem .8rem -1.2rem; padding:0 1.2rem;}}
-button[data-baseweb="tab"] {{padding:.55rem 1.1rem; font-size:.88rem; color:#475467;}}
-button[data-baseweb="tab"][aria-selected="true"] {{color:{ACCENT}; font-weight:600;}}
-div[data-baseweb="tab-highlight"] {{background:{ACCENT}; height:2px;}}
-
-[class*="st-key-panel_"] {{border-radius:10px !important; border:1px solid #e3e8ef !important;
-  background:#ffffff; padding:.9rem 1rem !important;}}
-.sw-panel-h {{font-size:.72rem; font-weight:650; text-transform:uppercase; letter-spacing:.07em;
-  color:#667085; margin:.1rem 0 .5rem 0;}}
-.sw-stat {{display:flex; justify-content:space-between; align-items:baseline; padding:.42rem 0;
-  border-bottom:1px solid #f0f2f5;}}
-.sw-stat:last-child {{border-bottom:none;}}
-.sw-stat .k {{font-size:.8rem; color:#667085;}}
-.sw-stat .v {{font-size:1.05rem; font-weight:650; color:#101828;}}
-.sw-stat .v.hot {{color:{RED};}}
-.sw-legend {{height:10px; border-radius:5px; margin:.3rem 0 .15rem 0;
-  background:linear-gradient(90deg,#7f1d1d,#dc2626,#fca5a5,#f8fafc,#93c5fd,#2563eb,#1e3a8a);}}
-.sw-legend-l {{display:flex; justify-content:space-between; font-size:.7rem; color:#667085;}}
-.sw-badge {{display:inline-block; font-size:.78rem; font-weight:600; padding:.25rem .6rem; border-radius:6px;}}
-.sw-badge.high {{background:#fef3f2; color:#b42318; border:1px solid #fecdca;}}
-.sw-badge.mod {{background:#fffaeb; color:#b54708; border:1px solid #fedf89;}}
-.sw-badge.ok {{background:#ecfdf3; color:#067647; border:1px solid #abefc6;}}
-.sw-badge.info {{background:#eff8ff; color:#175cd3; border:1px solid #b2ddff;}}
-.sw-status {{display:flex; gap:1.2rem; flex-wrap:wrap; font-size:.72rem; color:#667085;
-  background:#f7f9fc; border:1px solid #e3e8ef; border-radius:8px; padding:.35rem .8rem; margin-top:.5rem;}}
-.sw-status b {{color:#344054; font-weight:600;}}
-.sw-hero-num {{font-size:2.1rem; font-weight:700; color:{RED}; line-height:1;}}
-.sw-note {{font-size:.8rem; color:#667085;}}
-
-@keyframes swFade {{from {{opacity:0; transform:translateY(8px);}} to {{opacity:1; transform:none;}}}}
-@keyframes swPulse {{0% {{box-shadow:0 0 0 0 rgba(217,45,32,.55);}} 70% {{box-shadow:0 0 0 12px rgba(217,45,32,0);}} 100% {{box-shadow:0 0 0 0 rgba(217,45,32,0);}}}}
-@keyframes swBlink {{0%,100% {{opacity:1;}} 50% {{opacity:.25;}}}}
-@media (prefers-reduced-motion: no-preference) {{
-  [class*="st-key-panel_"] {{animation: swFade .55s ease both;}}
-  .sw-live {{animation: swBlink 1.6s infinite;}}
-  .sw-hero-num {{animation: swFade .8s ease both;}}
-}}
-.sw-live {{display:inline-block; width:7px; height:7px; border-radius:50%; background:#32d583; margin-right:5px; vertical-align:middle;}}
-.block-container {{position:relative;}}
-.st-key-dark {{position:absolute; top:.35rem; right:1.4rem; z-index:1000; width:auto !important;}}
-.st-key-dark label p {{color:#d7e0ec !important; font-size:.8rem !important;}}
-.sw-topbar {{margin-top:-1rem !important; padding-top:1.6rem !important;}}
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap");
+#MainMenu, header[data-testid="stHeader"], footer {visibility:hidden; height:0;}
+[data-testid="stSidebar"], [data-testid="collapsedControl"] {display:none;}
+.stApp, [data-testid="stAppViewContainer"] {background:var(--bg) !important; transition:background-color .5s ease;}
+.block-container {padding:0 0 3rem 0 !important; max-width:100% !important; position:relative;}
+html, body, .stApp, .stApp p, .stApp li, .stApp label, [data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] span
+  {font-family:"Inter","Segoe UI",system-ui,sans-serif; color:var(--text);}
+[data-testid="stIconMaterial"], .material-symbols-rounded {font-family:"Material Symbols Rounded" !important;}
+.card, .nav, .quote, .chip, .stat .n, .h1, .h2, .card .t, .lead, .sub {transition:background .5s ease, color .5s ease, border-color .5s ease;}
+a, a:hover, a:visited {color:var(--accent); text-decoration:none !important;}
+.wrap {max-width:1180px; margin:0 auto; padding:0 28px;}
+/* style-only blocks take no space */
+div[data-testid="stElementContainer"]:has([data-testid="stMarkdownContainer"] > style:only-child) {display:none;}
+/* theme toggle sits in the nav bar */
+.st-key-light {position:absolute; top:20px; right:max(28px, calc((100% - 1180px)/2 + 28px)); z-index:60; width:auto !important;}
+.st-key-light label p {color:var(--link) !important; font-size:14px !important;}
+/* nav */
+.nav {position:relative; z-index:50; backdrop-filter:blur(12px); background:var(--nav); border-bottom:1px solid var(--line);}
+.nav .wrap {display:flex; align-items:center; justify-content:space-between; height:64px;}
+.brand {display:flex; align-items:center; gap:12px; color:var(--head); font-weight:700; font-size:19px; letter-spacing:-.01em;}
+.brand img {width:36px; height:36px; border-radius:9px;}
+.links {display:flex; gap:28px; font-size:14px; margin-right:150px;}
+.links a {color:var(--link) !important;} .links a:hover {color:var(--head) !important;}
+/* hero */
+.hero {position:relative; overflow:hidden; padding:92px 0 84px;
+  background:radial-gradient(900px 520px at 78% 30%, var(--glow1), transparent 60%),
+             radial-gradient(800px 500px at 15% 10%, var(--glow2), transparent 60%), var(--bg);}
+.hero:before {content:""; position:absolute; inset:0; opacity:var(--stars);
+  background-image:radial-gradient(1.2px 1.2px at 10% 20%, #fff, transparent), radial-gradient(1px 1px at 30% 70%, #cfd8e6, transparent),
+  radial-gradient(1.3px 1.3px at 55% 15%, #fff, transparent), radial-gradient(1px 1px at 70% 60%, #cfd8e6, transparent),
+  radial-gradient(1.2px 1.2px at 85% 35%, #fff, transparent), radial-gradient(1px 1px at 92% 80%, #cfd8e6, transparent),
+  radial-gradient(1px 1px at 20% 90%, #fff, transparent), radial-gradient(1.4px 1.4px at 45% 45%, #fff, transparent);}
+.hero .wrap.plain {display:block;}
+.hero .wrap:not(.plain) {position:relative; display:grid; grid-template-columns:1.25fr .75fr; gap:48px; align-items:center;}
+.eyebrow {font-size:12.5px; font-weight:600; letter-spacing:.18em; text-transform:uppercase; color:var(--accent);}
+.h1 {font-size:60px; line-height:1.05; font-weight:800; letter-spacing:-.035em; color:var(--head); margin:18px 0 22px;}
+.grad {background:linear-gradient(90deg,#ff8a7a,#f43f5e); -webkit-background-clip:text; background-clip:text;
+  color:transparent !important; -webkit-text-fill-color:transparent;}
+.lead {font-size:19px; line-height:1.6; color:var(--muted); max-width:620px;}
+.cta {display:inline-block; margin-top:32px; padding:14px 26px; border-radius:999px; background:#f97066; color:#fff !important;
+  font-weight:600; font-size:15px; box-shadow:0 10px 30px rgba(249,112,102,.35); transition:transform .2s;}
+.cta:hover {transform:translateY(-2px);}
+.cta2 {margin-left:14px; color:var(--text) !important; font-size:15px; font-weight:500;}
+.hero-art {display:flex; justify-content:center;}
+.hero-art img {width:360px; max-width:100%; border-radius:36px; box-shadow:0 0 120px rgba(249,112,102,.28), 0 0 0 1px var(--line);
+  animation:float 6s ease-in-out infinite;}
+@keyframes float {0%,100% {transform:translateY(0)} 50% {transform:translateY(-12px)}}
+.stats {display:grid; grid-template-columns:repeat(3,1fr); gap:24px; margin-top:64px; border-top:1px solid var(--line);}
+.stat {padding:28px 0 0;}
+.stat .n {white-space:nowrap; font-size:44px; font-weight:800; letter-spacing:-.03em; color:var(--head); line-height:1;}
+.stat .n.hot {color:var(--hot);}
+.stat .l {font-size:14px; color:var(--muted2); margin-top:10px; line-height:1.45;}
+/* sections */
+.sec {padding:96px 0 28px;}
+.kicker {font-size:12.5px; font-weight:600; letter-spacing:.18em; text-transform:uppercase; color:var(--accent);}
+.h2 {font-size:42px; font-weight:800; letter-spacing:-.03em; color:var(--head); margin:12px 0 14px; line-height:1.1;}
+.sub {font-size:17px; color:var(--muted); max-width:720px; line-height:1.6;}
+.grid3 {display:grid; grid-template-columns:repeat(3,1fr); gap:22px; margin-top:40px;}
+.grid4 {display:grid; grid-template-columns:repeat(4,1fr); gap:22px; margin-top:40px;}
+.card {background:var(--card); border:1px solid var(--cardb); border-radius:20px; padding:28px;
+  transition:transform .25s, border-color .25s, background .5s; box-shadow:0 1px 2px rgba(15,23,42,.04);}
+.card:hover {transform:translateY(-4px); border-color:rgba(249,112,102,.45);}
+.card .ic {font-size:30px;}
+.card .t {font-size:19px; font-weight:700; color:var(--head); margin:14px 0 8px;}
+.card .d {font-size:15px; color:var(--muted); line-height:1.6;}
+.card .big {font-size:44px; font-weight:800; color:var(--hot); letter-spacing:-.03em; line-height:1;}
+.card .small {font-size:13px; color:var(--muted2); margin-top:10px;}
+.card .small b {color:var(--head);}
+.step-n {font-size:12px; font-weight:700; color:var(--accent); letter-spacing:.14em;}
+.quote {margin-top:44px; padding:30px 34px; border-radius:20px; background:var(--quote); border:1px solid var(--quoteb);
+  font-size:22px; color:var(--head); font-weight:600; letter-spacing:-.01em;}
+.quote span {display:block; font-size:13px; font-weight:400; color:var(--muted2); margin-top:10px;}
+.legend {display:flex; align-items:center; gap:14px; font-size:13px; color:var(--muted2);}
+.legend .bar {width:220px; height:8px; border-radius:4px; background:linear-gradient(90deg,#7f1d1d,#dc2626,#fca5a5,#f1f5f9); border:1px solid var(--line);}
+.maphead {display:flex; justify-content:space-between; align-items:flex-end; gap:20px; flex-wrap:wrap;}
+.mini {display:flex; gap:34px; margin-top:22px; flex-wrap:wrap;}
+.mini div {font-size:13px; color:var(--muted2);} .mini b {display:block; font-size:26px; font-weight:800; color:var(--head); letter-spacing:-.02em;}
+.mini b.hot {color:var(--hot);}
+.timeline {display:grid; grid-template-columns:repeat(4,1fr); gap:0; margin-top:40px; position:relative;}
+.timeline:before {content:""; position:absolute; left:8px; right:8px; top:9px; height:2px; background:linear-gradient(90deg,#f97066,rgba(249,112,102,.15));}
+.tl {position:relative; padding:34px 18px 0 0;}
+.tl:before {content:""; position:absolute; top:2px; left:0; width:16px; height:16px; border-radius:50%; background:var(--ring); border:3px solid #f97066;}
+.tl .w {font-size:12px; font-weight:700; letter-spacing:.14em; color:var(--accent); text-transform:uppercase;}
+.tl .x {font-size:15px; color:var(--text); margin-top:6px; line-height:1.55;}
+.foot {margin-top:110px; border-top:1px solid var(--line); padding:34px 0; font-size:13px; color:var(--faint);}
+.foot .row {display:flex; justify-content:space-between; gap:20px; flex-wrap:wrap;}
+.chip {display:inline-block; font-size:12px; padding:4px 10px; border-radius:999px; border:1px solid var(--chipb); color:var(--muted2); margin:0 6px 6px 0;}
+.si {font-size:12px; color:var(--faint); margin-top:14px;}
+.note {font-size:13px; color:var(--faint);}
+/* streamlit widgets follow the theme */
+[data-testid="stExpander"] details {background:var(--card) !important; border:1px solid var(--cardb) !important; border-radius:14px !important;}
+[data-testid="stExpander"] summary p {color:var(--head) !important; font-weight:600;}
+[data-testid="stPopover"] button, .stDownloadButton button {background:var(--card) !important; color:var(--head) !important;
+  border:1px solid var(--cardb) !important; border-radius:999px !important;}
+[data-testid="stPopover"] button p, .stDownloadButton button p {color:var(--head) !important;}
+div[data-baseweb="popover"] > div {background:var(--input) !important; border:1px solid var(--cardb) !important; border-radius:14px !important;}
+[data-testid="stSelectbox"] [data-baseweb="select"] > div, div[data-baseweb="popover"] ul, div[data-baseweb="popover"] li
+  {background:var(--input) !important; color:var(--head) !important; border-color:var(--cardb) !important;}
+[data-testid="stFileUploaderDropzone"] {background:var(--card) !important; border:1px dashed var(--chipb) !important;}
+[data-testid="stWidgetLabel"] p, [data-testid="stRadio"] label p {color:var(--muted) !important;}
+[data-testid="stTickBarMin"], [data-testid="stTickBarMax"], [data-testid="stSliderThumbValue"] {color:var(--muted) !important;}
+iframe {border-radius:20px;}
+@media (max-width: 900px) {.hero .wrap:not(.plain), .grid3, .grid4, .timeline, .stats {grid-template-columns:1fr;} .h1 {font-size:40px;} .links {display:none;}}
+@media (prefers-reduced-motion: no-preference) {.reveal {animation:rise .8s ease both;} @keyframes rise {from {opacity:0; transform:translateY(16px);} to {opacity:1; transform:none;}}}
 </style>
-""",
-    unsafe_allow_html=True,
-)
-
-if DARK:
-    st.markdown("""
-<style>
-.stApp, [data-testid="stAppViewContainer"] {background:#0b1220 !important;}
-[class*="st-key-panel_"] {background:#121c30 !important; border:1px solid #24344f !important;}
-.stApp, .stApp p, .stApp li, .stApp span, .stApp label, [data-testid="stWidgetLabel"] p,
-[data-testid="stMarkdownContainer"] {color:#d7e0ec;}
-.sw-stat {border-color:#1f2a40 !important;}
-.sw-stat .v {color:#f1f5f9 !important;}
-.sw-stat .v.hot, .sw-hero-num {color:#f97066 !important;}
-.sw-panel-h, .sw-note, .sw-stat .k, .sw-legend-l {color:#8ea0b8 !important;}
-div[data-baseweb="tab-list"] {background:#0f1729 !important; border-color:#1f2a40 !important;}
-button[data-baseweb="tab"] p {color:#8ea0b8 !important;}
-button[data-baseweb="tab"][aria-selected="true"] p {color:#60a5fa !important;}
-div[data-baseweb="tab-highlight"] {background:#60a5fa !important;}
-.sw-status {background:#0f1729 !important; border-color:#1f2a40 !important;}
-.sw-status b {color:#d7e0ec !important;}
-[data-testid="stSelectbox"] [data-baseweb="select"] > div, [data-testid="stSelectbox"] [data-baseweb="select"] div,
-div[data-baseweb="popover"] ul, div[data-baseweb="popover"] li {background:#0f1729 !important; color:#d7e0ec !important; border-color:#2c3e5a !important;}
-[data-testid="stSelectbox"] svg {fill:#8ea0b8 !important;}
-[data-testid="stTickBarMin"], [data-testid="stTickBarMax"], [data-testid="stSliderThumbValue"] {color:#8ea0b8 !important;}
-[data-testid="stTable"], [data-testid="stDataFrame"] {filter: invert(.9) hue-rotate(180deg);}
-.sw-topbar {background:#060b14 !important; border-bottom:1px solid #1f2a40;}
-.sw-badge.high {background:#3d1414 !important; color:#fda29b !important; border-color:#7a271a !important;}
-.sw-badge.mod {background:#3d2a0a !important; color:#fedf89 !important; border-color:#7a4e0f !important;}
-.sw-badge.ok {background:#0c3324 !important; color:#75e0a7 !important; border-color:#085d3a !important;}
-.sw-badge.info {background:#102a4c !important; color:#84caff !important; border-color:#1849a9 !important;}
-</style>""", unsafe_allow_html=True)
+""")
 
 
 # ------------------------------------------------------------------ data
@@ -369,7 +394,7 @@ class TimeLapse(MacroElement):
 
 
 
-class FullscreenHUD(MacroElement):
+class MapHUD(MacroElement):
     """Dashboard cards drawn inside the map, shown only in fullscreen."""
     _template = Template("""
 {% macro script(this, kwargs) %}
@@ -456,9 +481,10 @@ class FullscreenHUD(MacroElement):
     pinMarker=L.circleMarker(e.latlng,{radius:7,color:'#fff',weight:2,fillColor:'#f97066',fillOpacity:1}).addTo(map);
     render(e.latlng.lat,e.latlng.lng);});
   var bounds=[[P.bounds[0],P.bounds[1]],[P.bounds[2],P.bounds[3]]];
-  function show(on){insp.style.display=on?'block':'none'; summ.style.display=on?'block':'none';
+  function show(on){summ.style.display=on?'block':'none';
     if(on){setTimeout(function(){map.invalidateSize(); map.fitBounds(bounds,{padding:[20,20]});},250); render({{ this.lat0 }},{{ this.lon0 }});}
     else {setTimeout(function(){map.invalidateSize();},250);}}
+  insp.style.display='block'; render({{ this.lat0 }},{{ this.lon0 }});
   map.on('enterFullscreen',function(){show(true)});
   map.on('exitFullscreen',function(){show(false)});
 })();
@@ -467,7 +493,7 @@ class FullscreenHUD(MacroElement):
 
     def __init__(self, payload, summary, lat0, lon0):
         super().__init__()
-        self._name = "FullscreenHUD"
+        self._name = "MapHUD"
         self.payload = json.dumps(payload)
         self.summary = json.dumps(summary)
         self.lat0, self.lon0 = lat0, lon0
@@ -481,170 +507,178 @@ lat0, lon0 = CENTRE
 r0, c0 = latlon_to_rc(data, lat0, lon0)
 city_vel = float(np.nanmedian(vel_all[max(r0 - 25, 0):r0 + 25, max(c0 - 25, 0):c0 + 25]))
 fastest = float(np.nanpercentile(vel, 1))
+px = data["px_km2"]
+def area(t): return float((vel <= -t).sum() * px)
+def people(t): return float(np.nansum(data["pop_utm"][vel <= -t])) if data["has_pop"] else 0.0
+icon_src = ("data:image/png;base64," + ICON_B64) if ICON_B64 else ""
 
-# ------------------------------------------------------------------ top bar
-st.markdown(
-    f"""
-<div class="sw-topbar">
-  <div class="sw-brand">
-    <div class="sw-logo">{('<img src="data:image/png;base64,' + ICON_B64 + '" alt="SinkWatch logo">') if ICON_B64 else 'S'}</div>
-    <div class="sw-sub"><span class="sw-live"></span>Land subsidence monitor<br>Quetta, Pakistan</div>
+
+def section_space(px_=0):
+    st.markdown(f"<div style='height:{px_}px'></div>", unsafe_allow_html=True)
+
+
+def center_cols():
+    """Streamlit widgets in the same 1180 px column as the HTML sections."""
+    a, b, c = st.columns([0.06, 0.88, 0.06])
+    return b
+
+
+# ------------------------------------------------------------------ nav + hero
+H(f"""
+<div class="nav"><div class="wrap">
+  <div class="brand"><img src="{icon_src}" alt="">SinkWatch</div>
+  <div class="links"><a href="#map">Map</a><a href="#impact">Impact</a><a href="#how">How it works</a>
+    <a href="#analyze">Analyze your data</a><a href="#about">About</a></div>
+</div></div>
+
+<div class="hero"><div class="wrap">
+  <div class="reveal">
+    <div class="eyebrow">NASA Space Apps 2026 · Dancing with the SARs</div>
+    <div class="h1">Cities are sinking. <span class="grad">Now we can see it</span> from space.</div>
+    <div class="lead">From Jakarta to Tehran to Quetta, groundwater pumping is making cities sink, often unnoticed until
+      buildings crack. SinkWatch turns free NASA–ISRO NISAR radar into a map anyone can read: where the ground is sinking,
+      how fast, and who lives on it.</div>
+    <a class="cta" href="#map">Explore the first map ↓</a><a class="cta2" href="#how">How it works →</a>
   </div>
-  <div class="sw-center">
-    <div class="sw-event">NASA Space Apps Challenge 2026 · Dancing with the SARs</div>
-    <div class="sw-title">SinkWatch</div>
-    <div class="sw-tag">Seeing the ground move from space</div>
-  </div>
-  <div class="sw-chips">
-    <span class="sw-chip">NASA-ISRO NISAR · L-band GUNW</span>
-    <span class="sw-chip">{fmt_date(dates[0], '%d %b')} → {fmt_date(dates[-1])}</span>
-    <span class="sw-chip">Track 041 asc · frame 017 · 80 m</span>
-    <span class="sw-chip warn">Provisional data</span>
-  </div>
+  <div class="hero-art reveal"><img src="{icon_src}" alt="SinkWatch"></div>
 </div>
-""",
-    unsafe_allow_html=True,
-)
+<div class="wrap plain"><div class="stats reveal">
+  <div class="stat"><div class="n hot">1 in 5</div><div class="l">people may live on sinking ground by 2040<br>(Science, 2021)</div></div>
+  <div class="stat"><div class="n">12 days</div><div class="l">for NISAR to scan the whole planet, free and open</div></div>
+  <div class="stat"><div class="n hot">Any city</div><div class="l">the same pipeline works wherever NISAR passes</div></div>
+</div></div></div>
+""")
 
-tab_map, tab_exp, tab_up, tab_val, tab_method, tab_about = st.tabs(
-    ["Map", "Exposure", "Analyze your data", "Validation", "Method", "About"])
+# ------------------------------------------------------------------ map
+H(f"""
+<div class="sec" id="map"><div class="wrap">
+  <div class="maphead">
+    <div><div class="kicker">First city · Quetta, Pakistan</div>
+      <div class="h2">Quetta is sinking up to <span class="grad">{abs(fastest):.1f} cm</span> a year.</div>
+      <div class="sub">Red is sinking. Hover anywhere for the speed and the people nearby, click to pin a point,
+        press ▶ for the time-lapse, or ⛶ for a fullscreen dashboard.</div>
+      <div class="mini"><div><b class="hot">{abs(city_vel):.1f} cm/yr</b>city centre</div><div><b>{area(5):,.0f} km²</b>sinking &gt; 5 cm/yr</div>
+        <div><b class="hot">{people(5):,.0f}</b>people on that ground</div><div><b>{fmt_date(dates[0], '%b')}–{fmt_date(dates[-1], '%b %Y')}</b>9 NISAR radar pairs</div></div></div>
+    <div class="legend"><span>−15 cm/yr</span><div class="bar"></div><span>0</span></div>
+  </div>
+</div></div>
+""")
 
-# ================================================================== MAP
-with tab_map:
-    left, centre, right = st.columns([0.95, 2.7, 1.25], gap="small")
-
-    with left:
-        with panel():
-            st.markdown("<div class='sw-panel-h'>Layers</div>", unsafe_allow_html=True)
-            show_layer = st.checkbox("Subsidence velocity", value=True)
-            valley_only = st.checkbox("Valley floor only", value=True,
-                                      help="Groundwater subsidence happens in soft valley sediments. "
-                                           "Signal on bedrock mountains is treated as weather noise.")
-            sinking_only = st.checkbox("Sinking only", value=True)
-            show_box = st.checkbox("Analysis extent", value=True)
-        with panel():
-            st.markdown("<div class='sw-panel-h'>Display</div>", unsafe_allow_html=True)
+with center_cols():
+    sp, settings = st.columns([0.8, 0.2])
+    with settings:
+        with st.popover("⚙  Map settings", use_container_width=True):
+            basemap = st.selectbox("Basemap", ["Dark", "Light", "Satellite", "Streets"], index=0 if DARK else 1)
             threshold = st.slider("Hide motion below (cm/yr)", 0.0, 10.0, 3.0, 0.5)
-            opacity = st.slider("Opacity", 0.2, 1.0, 0.75, 0.05)
-            basemap = st.selectbox("Basemap", ["Light", "Satellite", "Streets", "Dark"], index=3 if DARK else 0)
-        with panel():
-            st.markdown("<div class='sw-panel-h'>Legend · vertical speed</div>", unsafe_allow_html=True)
-            st.markdown("<div class='sw-legend'></div><div class='sw-legend-l'><span>−15</span>"
-                        "<span>0</span><span>+15 cm/yr</span></div>"
-                        "<div class='sw-note' style='margin-top:.35rem'>Red = sinking · blue = rising</div>",
-                        unsafe_allow_html=True)
+            opacity = st.slider("Opacity", 0.2, 1.0, 0.8, 0.05)
+            valley_only = st.toggle("Valley floor only", value=True,
+                                    help="Groundwater subsidence happens in soft valley sediments; signal on bedrock is treated as noise.")
+            sinking_only = st.toggle("Sinking only", value=True)
+    s, w, n, e = [float(v) for v in data["latlon_bounds"]]
+    tiles = {
+        "Light": ("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+                  "Esri, HERE, Garmin, OpenStreetMap contributors"),
+        "Satellite": ("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", "Esri World Imagery"),
+        "Streets": ("OpenStreetMap", None),
+        "Dark": ("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+                 "Esri, HERE, Garmin, OpenStreetMap contributors"),
+    }[basemap]
+    m = folium.Map(location=[lat0, lon0], zoom_start=11, tiles=None, control_scale=True)
+    folium.TileLayer(tiles=tiles[0], attr=tiles[1], name=basemap).add_to(m)
+    folium.raster_layers.ImageOverlay(image=overlay_png(threshold, opacity, sinking_only, valley_only),
+                                      bounds=[[s, w], [n, e]], interactive=False).add_to(m)
+    folium.Marker([lat0, lon0], tooltip="Quetta city centre", icon=folium.DivIcon(
+        icon_size=(18, 18), icon_anchor=(9, 9), html="<div class='sw-pin'></div>")).add_to(m)
+    TimeLapse(timelapse_frames(opacity, valley_only), dates).add_to(m)
+    Fullscreen(title="Fullscreen dashboard", title_cancel="Exit fullscreen").add_to(m)
+    MapHUD(hud_payload(), {"city": f"{abs(city_vel):.1f}", "fast": f"{abs(fastest):.1f}",
+                           "area": f"{area(5):,.0f}", "people": f"{people(5):,.0f}"}, lat0, lon0).add_to(m)
+    m.fit_bounds([[s, w], [n, e]], padding_top_left=(10, 10), padding_bottom_right=(300, 10))
+    st_folium(m, key=f"v2_map_{basemap}", height=680, use_container_width=True, returned_objects=[])
 
-    with centre:
-        s, w, n, e = [float(v) for v in data["latlon_bounds"]]
-        tiles = {
-            "Light": ("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
-                      "Esri, HERE, Garmin, OpenStreetMap contributors"),
-            "Satellite": ("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-                          "Esri World Imagery"),
-            "Streets": ("OpenStreetMap", None),
-            "Dark": ("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
-                     "Esri, HERE, Garmin, OpenStreetMap contributors"),
-        }[basemap]
-        m = folium.Map(location=[lat0, lon0], zoom_start=11, tiles=None, control_scale=True)
-        folium.TileLayer(tiles=tiles[0], attr=tiles[1], name=basemap).add_to(m)
-        if show_layer:
-            folium.raster_layers.ImageOverlay(
-                image=overlay_png(threshold, opacity, sinking_only, valley_only),
-                bounds=[[s, w], [n, e]], interactive=False).add_to(m)
-        if show_box:
-            folium.Rectangle([[s, w], [n, e]], color="#667085", weight=1, fill=False, dash_array="4").add_to(m)
-        folium.Marker([lat0, lon0], tooltip="Quetta city centre", icon=folium.DivIcon(
-            icon_size=(18, 18), icon_anchor=(9, 9),
-            html="<div class='sw-pin'></div>")).add_to(m)
-        TimeLapse(timelapse_frames(opacity, valley_only), dates).add_to(m)
-        Fullscreen(title="Fullscreen with live inspector", title_cancel="Exit fullscreen").add_to(m)
-        _area5 = float((vel <= -5).sum() * data["px_km2"])
-        _ppl5 = float(np.nansum(data["pop_utm"][vel <= -5])) if data["has_pop"] else None
-        FullscreenHUD(hud_payload(), {
-            "city": f"{abs(city_vel):.1f}", "fast": f"{abs(fastest):.1f}", "area": f"{_area5:,.0f}",
-            "people": f"{_ppl5:,.0f}" if _ppl5 is not None else "n/a"}, lat0, lon0).add_to(m)
-        MousePosition(position="bottomright", separator=" · ", num_digits=4, prefix="").add_to(m)
-        out = st_folium(m, key="sw_map", height=640, use_container_width=True, returned_objects=["last_clicked"])
+# ------------------------------------------------------------------ impact
+rows = [(t, area(t), people(t)) for t in (2, 5, 8, 10)]
+cards = "".join(f"<div class='card'><div class='big'>{p/1000:,.0f}k</div><div class='t'>people</div>"
+                f"<div class='small'>on ground sinking faster than <b>{t} cm/yr</b> · {a:,.0f} km²</div></div>"
+                for t, a, p in rows)
+H(f"""
+<div class="sec" id="impact"><div class="wrap">
+  <div class="kicker">The impact</div>
+  <div class="h2">Who lives on sinking ground</div>
+  <div class="sub">Cracked walls, broken pipes and worse flooding come long after the ground starts to drop.
+    Knowing <i>where</i> and <i>who</i> lets a city act first.</div>
+  <div class="grid4">{cards}</div>
+  <div class="grid3">
+    <div class="card"><div class="ic">🏘️</div><div class="t">Protect neighbourhoods</div><div class="d">See which streets and buildings to inspect first.</div></div>
+    <div class="card"><div class="ic">💧</div><div class="t">Manage groundwater</div><div class="d">Find where pumping is making the city sink.</div></div>
+    <div class="card"><div class="ic">🚨</div><div class="t">Early warning</div><div class="d">Catch fast sinking before floods and damage.</div></div>
+  </div>
+</div></div>
+
+<div class="sec"><div class="wrap">
+  <div class="kicker">Why it matters</div>
+  <div class="h2">One problem, many cities</div>
+  <div class="grid3">
+    <div class="card"><div class="t">Jakarta</div><div class="d">Sinking so fast that Indonesia is moving its capital city.</div></div>
+    <div class="card"><div class="t">Tehran</div><div class="d">Among the fastest-sinking capitals on Earth, driven by groundwater pumping.</div></div>
+    <div class="card"><div class="t">Quetta</div><div class="d">Parts of the valley have dropped about 2.7 m since 2003, and it is still going: up to {abs(fastest):.1f} cm a year.</div></div>
+  </div>
+  <div class="quote">By 2040, nearly 1 in 5 people may live where the ground can sink.
+    <span>Herrera-García et al., Science (2021)</span></div>
+</div></div>
+
+<div class="sec" id="how"><div class="wrap">
+  <div class="kicker">How it works</div>
+  <div class="h2">From radar in orbit to a map in your browser</div>
+  <div class="grid4">
+    <div class="card"><div class="step-n">STEP 1</div><div class="ic" style="margin-top:10px">🛰️</div><div class="t">Radar from space</div>
+      <div class="d">NASA–ISRO NISAR's L-band radar sees the ground through clouds, day and night, every 12 days.</div></div>
+    <div class="card"><div class="step-n">STEP 2</div><div class="ic" style="margin-top:10px">🧹</div><div class="t">Clean the signal</div>
+      <div class="d">Remove the ionosphere and the weather that follows the mountains.</div></div>
+    <div class="card"><div class="step-n">STEP 3</div><div class="ic" style="margin-top:10px">📏</div><div class="t">Measure the sinking</div>
+      <div class="d">Stack 9 radar pairs (Jun–Oct 2026) into centimetres per year for every 80 m.</div></div>
+    <div class="card"><div class="step-n">STEP 4</div><div class="ic" style="margin-top:10px">🏘️</div><div class="t">Count the people</div>
+      <div class="d">Overlay WorldPop population to see who lives on the sinking ground.</div></div>
+  </div>
+</div></div>
+""")
+
+with center_cols():
+    section_space(18)
+    with st.expander("The full method, for scientists"):
         st.markdown(
-            "<div class='sw-status'><span><b>CRS</b> WGS84 / UTM 42N (EPSG:32642)</span>"
-            "<span><b>Pixel</b> 80 m</span><span><b>Input</b> 9 NISAR GUNW pairs · 120 days</span>"
-            "<span><b>Tip</b> click the map to inspect · ⛶ fullscreen shows a live inspector</span></div>",
-            unsafe_allow_html=True)
+            "1. **Data:** 9 consecutive NISAR L2 GUNW interferograms (12-day pairs), track 041 ascending, frame 017, "
+            f"{fmt_date(dates[0])} → {fmt_date(dates[-1])}, streamed from NASA's ASF DAAC (no 20 GB download).\n"
+            "2. **Ionosphere:** NISAR's split-spectrum ionosphere phase screen is subtracted from every pair.\n"
+            "3. **Troposphere + tilt:** fit a·row + b·col + c·elevation + d against Copernicus GLO-30, using only data "
+            "outside an 8 km circle around the city, and remove it.\n"
+            "4. **Stack:** sum the 9 cleaned pairs; displacement = −λ/4π · phase, λ = 24.2 cm.\n"
+            "5. **Vertical:** line-of-sight ÷ cos(45.1°). Valley floor = elevation < 1,900 m and slope < 5°.\n"
+            "6. **Exposure:** WorldPop 2020 (constrained, UN-adjusted) summed on the same 80 m grid.\n"
+            "7. **Trust:** every point gets an R² trend-confidence score, so noisy points are flagged.")
+    with st.expander("Checked against published studies"):
+        refs = [("SinkWatch · city centre (NISAR 2026)", abs(city_vel), "#f97066"),
+                ("SinkWatch · fastest 1% (NISAR 2026)", abs(fastest), "#f97066"),
+                ("Kakar et al. 2025 · max after 2016 (InSAR)", 16.0, "#94a3b8"),
+                ("Kakar et al. 2024 · central GNSS after 2016", 16.6, "#94a3b8"),
+                ("Kakar et al. 2024 · valley minimum (InSAR)", 3.2, "#cbd5e1")]
+        fig = go.Figure(go.Bar(y=[r[0] for r in refs], x=[r[1] for r in refs], orientation="h",
+                               marker_color=[r[2] for r in refs], text=[f"{r[1]:.1f} cm/yr" for r in refs],
+                               textposition="outside"))
+        clean_fig(fig, 300).update_yaxes(autorange="reversed")
+        st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+        st.markdown("Published Sentinel-1 InSAR and GPS studies report **3.2–16 cm/yr** across the Quetta valley, "
+                    "fastest in the centre. SinkWatch finds the same hotspot with consistent rates from only 120 days "
+                    "of NISAR data. *Kakar et al. (2025) Natural Hazards, doi:10.1007/s11069-025-07226-y; "
+                    "Kakar et al. (2024) Remote Sensing 16(9):1521.*")
+    with st.expander("Limitations"):
+        st.markdown("- Provisional NISAR products (calibrated, still being validated)\n"
+                    "- 120-day record, so the yearly rate is an estimate that will sharpen with more passes\n"
+                    "- One viewing direction, so vertical motion is assumed\n"
+                    "- Some leftover atmosphere away from the valley\n"
+                    "- Exposure shows who lives on sinking ground; it is not a building-damage model")
 
-    with right:
-        with panel():
-            st.markdown("<div class='sw-panel-h'>Quetta summary</div>", unsafe_allow_html=True)
-            risk_area = float((vel <= -5).sum() * data["px_km2"])
-            people5 = float(np.nansum(data["pop_utm"][vel <= -5])) if data["has_pop"] else None
-            stat_rows([
-                ("City centre", f"{abs(city_vel):.1f} cm/yr", "hot"),
-                ("Fastest 1% (valley)", f"{abs(fastest):.1f} cm/yr", "hot"),
-                ("Area sinking > 5 cm/yr", f"{risk_area:,.0f} km²", ""),
-                ("People on that ground", f"{people5:,.0f}" if people5 is not None else "n/a", "hot"),
-            ])
-
-        with panel():
-            st.markdown("<div class='sw-panel-h'>Inspector</div>", unsafe_allow_html=True)
-            click = out.get("last_clicked") if out else None
-            lat, lon = (click["lat"], click["lng"]) if click else (lat0, lon0)
-            st.markdown(f"<div class='sw-note'>{'Selected point' if click else 'Quetta city centre'} · "
-                        f"{lat:.4f}°N, {lon:.4f}°E</div>", unsafe_allow_html=True)
-            ps = point_stats(data, lat, lon)
-            if ps is None:
-                st.info("Outside the analysis area.")
-            else:
-                stat_rows([
-                    ("Vertical speed", f"{ps['vel']:+.1f} cm/yr", "hot" if ps["vel"] <= -3 else ""),
-                    ("Elevation", f"{ps['elev']:,.0f} m", ""),
-                    ("People within 500 m", f"{ps['people']:,.0f}" if ps["people"] is not None else "n/a", ""),
-                    ("Trend confidence", ("High" if ps["r2"] >= 0.6 else "Medium" if ps["r2"] >= 0.3 else "Low · noisy")
-                     + f" (R² {ps['r2']:.2f})", "" ),
-                ])
-                if not ps["valley"]:
-                    badge = ("info", "Bedrock / mountain · not a subsidence zone")
-                elif ps["r2"] < 0.3:
-                    badge = ("info", "No clear trend · within noise")
-                elif ps["vel"] <= -8:
-                    badge = ("high", "High risk · fast sinking")
-                elif ps["vel"] <= -3:
-                    badge = ("mod", "Moderate sinking")
-                else:
-                    badge = ("ok", "No significant sinking")
-                st.markdown(f"<div style='margin:.5rem 0'><span class='sw-badge {badge[0]}'>{badge[1]}</span></div>",
-                            unsafe_allow_html=True)
-                x = [datetime.strptime(d, "%Y%m%d") for d in dates]
-                fig = go.Figure(go.Scatter(x=x, y=ps["series"] / 10.0, mode="lines+markers",
-                                           line=dict(color=RED, width=2.5), marker=dict(size=6),
-                                           hovertemplate="%{x|%d %b}: %{y:.1f} cm<extra></extra>"))
-                fig.add_hline(y=0, line_dash="dot", line_color="#98a2b3")
-                clean_fig(fig, 220).update_yaxes(title_text="cm since 17 Jun", title_font=dict(size=10))
-                st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
-
-# ================================================================== EXPOSURE
-with tab_exp:
-    rows = []
-    for thr in [2, 5, 8, 10]:
-        mk = vel <= -thr
-        rows.append((thr, float(mk.sum() * data["px_km2"]),
-                     int(np.nansum(data["pop_utm"][mk])) if data["has_pop"] else None))
-    k = st.columns(4)
-    for col, (thr, area, ppl) in zip(k, rows):
-        with col:
-            with panel():
-                st.markdown(f"<div class='sw-panel-h'>Sinking faster than {thr} cm/yr</div>"
-                            f"<div class='sw-hero-num'>{(ppl or 0)/1000:,.0f}k</div>"
-                            f"<div class='sw-note'>people · {area:,.0f} km² of valley floor</div>",
-                            unsafe_allow_html=True)
-    with panel():
-        st.markdown("<div class='sw-panel-h'>People living on sinking ground</div>", unsafe_allow_html=True)
-        fig = go.Figure(go.Bar(x=[f"> {r[0]} cm/yr" for r in rows], y=[r[2] or 0 for r in rows],
-                               marker_color=["#fda29b", "#f04438", "#d92d20", "#912018"],
-                               text=[f"{(r[2] or 0):,}" for r in rows], textposition="outside"))
-        st.plotly_chart(clean_fig(fig, 320), width="stretch", config={"displayModeBar": False})
-        st.markdown("<div class='sw-note'>Population: WorldPop 2020, constrained and UN-adjusted, summed on the "
-                    "80 m grid. Exposure shows who lives on fast-sinking ground; it is not a building-damage model.</div>",
-                    unsafe_allow_html=True)
-
+# ------------------------------------------------------------------ analyze your data
 # ================================================================== ANALYZE YOUR DATA
 SAMPLE_TIF = "app_data/sample_quetta_velocity_cm_yr.tif"
 UNIT_TO_CM = {"cm/yr": 1.0, "mm/yr": 0.1, "m/yr": 100.0}
@@ -730,200 +764,110 @@ class ClickInspect(MacroElement):
         self.grid, self.s, self.w, self.n, self.e = grid_json, s, w, n, e
 
 
-with tab_up:
-    st.markdown("<div class='sw-note' style='margin-bottom:.6rem'>Bring your own ground-motion map: any "
-                "single-band GeoTIFF of velocity (from the SinkWatch pipeline, ASF HyP3, LiCSBAS, MintPy…). "
-                "SinkWatch maps it, measures the sinking area and lets you inspect any point. "
-                "Files stay in your browser session and are not stored.</div>", unsafe_allow_html=True)
-    u_left, u_centre, u_right = st.columns([0.95, 2.7, 1.25], gap="small")
-    with u_left:
-        with panel():
-            st.markdown("<div class='sw-panel-h'>1 · Data</div>", unsafe_allow_html=True)
-            src_mode = st.radio("Source", ["Try the Quetta sample", "Upload a GeoTIFF"], label_visibility="collapsed")
-            raw = None
-            if src_mode == "Upload a GeoTIFF":
-                up = st.file_uploader("Velocity GeoTIFF", type=["tif", "tiff"], label_visibility="collapsed")
-                if up is not None:
-                    raw = up.getvalue()
-            else:
-                try:
-                    with open(SAMPLE_TIF, "rb") as fh:
-                        raw = fh.read()
-                except OSError:
-                    st.warning("Sample file not found.")
+
+H("""
+<div class="sec" id="analyze"><div class="wrap">
+  <div class="kicker">Analyze your data</div>
+  <div class="h2">Bring any city's ground-motion map</div>
+  <div class="sub">Upload a velocity GeoTIFF (from SinkWatch, ASF HyP3, LiCSBAS, MintPy…) and get the same analysis instantly.
+    Files stay in your session and are not stored.</div>
+</div></div>
+""")
+
+with center_cols():
+    section_space(10)
+    a_l, a_r = st.columns([0.3, 0.7], gap="large")
+    with a_l:
+        src_mode = st.radio("Source", ["Try the Quetta sample", "Upload a GeoTIFF"], label_visibility="collapsed")
+        raw = None
+        if src_mode == "Upload a GeoTIFF":
+            up = st.file_uploader("Velocity GeoTIFF", type=["tif", "tiff"], label_visibility="collapsed")
+            if up is not None:
+                raw = up.getvalue()
+        else:
             try:
                 with open(SAMPLE_TIF, "rb") as fh:
-                    st.download_button("Download sample .tif", fh.read(), file_name="sample_quetta_velocity_cm_yr.tif",
-                                       mime="image/tiff", width="stretch")
+                    raw = fh.read()
             except OSError:
-                pass
-        with panel():
-            st.markdown("<div class='sw-panel-h'>2 · Units</div>", unsafe_allow_html=True)
+                st.warning("Sample file not found.")
+        with st.popover("⚙  Units & display", use_container_width=True):
             unit = st.selectbox("Velocity units", list(UNIT_TO_CM), index=0)
-            flip = st.checkbox("Positive values mean sinking", value=False,
-                               help="SinkWatch uses negative = sinking. Tick this if your file uses the opposite sign.")
-            is_los = st.checkbox("Values are line-of-sight (convert to vertical)", value=False)
+            flip = st.toggle("Positive values mean sinking", value=False)
+            is_los = st.toggle("Values are line-of-sight", value=False)
             inc = st.slider("Incidence angle (°)", 20.0, 50.0, 39.0, 0.5) if is_los else 0.0
-        with panel():
-            st.markdown("<div class='sw-panel-h'>3 · Display</div>", unsafe_allow_html=True)
             u_thr = st.slider("Hide motion below (cm/yr) ", 0.0, 10.0, 2.0, 0.5)
-            u_op = st.slider("Opacity ", 0.2, 1.0, 0.75, 0.05)
-            u_sink = st.checkbox("Sinking only ", value=True)
-
-    res, err = None, None
-    if raw is not None:
+            u_op = st.slider("Opacity ", 0.2, 1.0, 0.8, 0.05)
         try:
-            res = analyze_raster(raw, unit, flip, inc)
-        except Exception as ex:  # keep the rest of the app alive whatever the file is
-            err = str(ex) or "Could not read this file. Is it a GeoTIFF?"
-
-    with u_centre:
+            with open(SAMPLE_TIF, "rb") as fh:
+                st.download_button("Download sample .tif", fh.read(), file_name="sample_quetta_velocity_cm_yr.tif",
+                                   mime="image/tiff", use_container_width=True)
+        except OSError:
+            pass
+        res, err = None, None
+        if raw is not None:
+            try:
+                res = analyze_raster(raw, unit, flip, inc)
+            except Exception as ex:
+                err = str(ex) or "Could not read this file. Is it a GeoTIFF?"
         if err:
             st.error(err)
-        if res is None:
-            with panel():
-                st.markdown("<div class='sw-panel-h'>Waiting for data</div>"
-                            "<div class='sw-note'>Choose the sample or upload a GeoTIFF on the left.</div>",
-                            unsafe_allow_html=True)
-        else:
-            s, w, n, e = res["bounds"]
-            tile = ("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}"
-                    if DARK else
-                    "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}")
-            span = max(e - w, (n - s) * 1.3, 1e-4)
-            zoom = int(np.clip(np.floor(np.log2(800 * 360 / (256 * span))), 2, 16))
-            um = folium.Map(location=[(s + n) / 2, (w + e) / 2], zoom_start=zoom, tiles=None, control_scale=True)
-            folium.TileLayer(tiles=tile, attr="Esri, HERE, Garmin, OpenStreetMap contributors").add_to(um)
-            shown = np.where(res["vel_ll"] > 0, np.nan, res["vel_ll"]) if u_sink else res["vel_ll"]
-            img = Image.fromarray(colorize(shown, u_thr, u_op), "RGBA")
-            buf = io.BytesIO()
-            img.save(buf, format="PNG")
-            folium.raster_layers.ImageOverlay(image="data:image/png;base64," + base64.b64encode(buf.getvalue()).decode(),
-                                              bounds=[[s, w], [n, e]], interactive=False).add_to(um)
-            folium.Rectangle([[s, w], [n, e]], color="#667085", weight=1, fill=False, dash_array="4").add_to(um)
-            Fullscreen().add_to(um)
-            MousePosition(position="bottomright", separator=" · ", num_digits=4, prefix="").add_to(um)
-            # click-to-inspect runs inside the map (works in any tab, no server round-trip)
-            g = res["vel_ll"]
-            stp = max(1, int(np.ceil(max(g.shape) / 300)))
-            gs = g[::stp, ::stp]
-            grid = [[None if not np.isfinite(x) else round(float(x), 1) for x in row] for row in gs]
-            ClickInspect(json.dumps(grid), s, w, n, e).add_to(um)
-            components.html(um.get_root().render(), height=560)
-            h, wd = res["shape"]
-            st.markdown(f"<div class='sw-status'><span><b>CRS</b> {res['crs_name']}</span>"
-                        f"<span><b>Grid</b> {wd} × {h} px</span><span><b>Units</b> converted to vertical cm/yr</span>"
-                        "<span><b>Tip</b> click anywhere on the map to read the speed</span></div>", unsafe_allow_html=True)
-
-    with u_right:
         if res is not None:
             v, pa = res["vel"], res["px_km2"]
             ok = np.isfinite(v)
-            a5 = float(pa[ok & (v <= -5)].sum())
-            a10 = float(pa[ok & (v <= -10)].sum())
-            with panel():
-                st.markdown("<div class='sw-panel-h'>Summary</div>", unsafe_allow_html=True)
-                stat_rows([
-                    ("Fastest 1%", f"{abs(min(np.nanpercentile(v, 1), 0)):.1f} cm/yr", "hot"),
-                    ("Median motion", f"{np.nanmedian(v):+.1f} cm/yr", ""),
-                    ("Area sinking > 5 cm/yr", f"{a5:,.1f} km²", "hot"),
-                    ("Area sinking > 10 cm/yr", f"{a10:,.1f} km²", ""),
-                    ("Area covered", f"{float(pa[ok].sum()):,.0f} km²", ""),
-                ])
-            with panel():
-                st.markdown("<div class='sw-panel-h'>Inspector</div><div class='sw-note'>Click anywhere on the map: "
-                            "the vertical speed and status pop up right on the point.</div>", unsafe_allow_html=True)
-            with panel():
-                st.markdown("<div class='sw-panel-h'>Distribution</div>", unsafe_allow_html=True)
-                vv = np.clip(v[ok], -VMAX, VMAX)
-                fig = go.Histogram(x=vv, nbinsx=40, marker_color=RED)
-                fig = go.Figure(fig)
-                fig.add_vline(x=0, line_dash="dot", line_color="#98a2b3")
-                clean_fig(fig, 200).update_xaxes(title_text="cm/yr (negative = sinking)", title_font=dict(size=10))
-                st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
-
-# ================================================================== VALIDATION
-with tab_val:
-    c1, c2 = st.columns([1.5, 1])
-    with c1:
-        with panel():
-            st.markdown("<div class='sw-panel-h'>SinkWatch vs independent measurements (cm/yr)</div>",
+            H(f"""
+<div class="card" style="margin-top:14px;padding:22px">
+  <div class="big">{abs(min(np.nanpercentile(v, 1), 0)):.1f}<span style="font-size:16px;color:var(--muted2)"> cm/yr</span></div>
+  <div class="small">fastest 1% of your map</div>
+  <div style="height:14px"></div>
+  <div class="t" style="margin:0">{float(pa[ok & (v <= -5)].sum()):,.1f} km²</div><div class="small" style="margin-top:2px">sinking faster than 5 cm/yr</div>
+  <div style="height:10px"></div>
+  <div class="t" style="margin:0">{float(pa[ok].sum()):,.0f} km²</div><div class="small" style="margin-top:2px">area covered</div>
+</div>""")
+    with a_r:
+        if res is None:
+            st.markdown("<div class='card' style='height:520px;display:flex;align-items:center;justify-content:center'>"
+                        "<div class='d'>Choose the sample or upload a GeoTIFF.</div></div>", unsafe_allow_html=True)
+        else:
+            s2, w2, n2, e2 = res["bounds"]
+            span = max(e2 - w2, (n2 - s2) * 1.3, 1e-4)
+            zoom = int(np.clip(np.floor(np.log2(800 * 360 / (256 * span))), 2, 16))
+            um = folium.Map(location=[(s2 + n2) / 2, (w2 + e2) / 2], zoom_start=zoom, tiles=None, control_scale=True)
+            folium.TileLayer(tiles=f"https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_{'Dark' if DARK else 'Light'}_Gray_Base/MapServer/tile/{{z}}/{{y}}/{{x}}",
+                             attr="Esri, HERE, Garmin, OpenStreetMap contributors").add_to(um)
+            shown = np.where(res["vel_ll"] > 0, np.nan, res["vel_ll"])
+            img = Image.fromarray(colorize(shown, u_thr, u_op), "RGBA")
+            buf = io.BytesIO(); img.save(buf, format="PNG")
+            folium.raster_layers.ImageOverlay(image="data:image/png;base64," + base64.b64encode(buf.getvalue()).decode(),
+                                              bounds=[[s2, w2], [n2, e2]], interactive=False).add_to(um)
+            g = res["vel_ll"]; stp = max(1, int(np.ceil(max(g.shape) / 300))); gs = g[::stp, ::stp]
+            grid = [[None if not np.isfinite(x) else round(float(x), 1) for x in row] for row in gs]
+            ClickInspect(json.dumps(grid), s2, w2, n2, e2).add_to(um)
+            components.html(um.get_root().render(), height=520)
+            st.markdown("<div class='note'>Click anywhere on the map to read the speed at that point.</div>",
                         unsafe_allow_html=True)
-            refs = [
-                ("SinkWatch · city centre (NISAR 2026)", abs(city_vel), RED),
-                ("SinkWatch · fastest 1% (NISAR 2026)", abs(fastest), RED),
-                ("Kakar et al. 2025 · max after 2016 (InSAR)", 16.0, "#98a2b3"),
-                ("Kakar et al. 2024 · central GNSS after 2016", 16.6, "#98a2b3"),
-                ("Kakar et al. 2024 · valley minimum (InSAR)", 3.2, "#d0d5dd"),
-            ]
-            fig = go.Figure(go.Bar(y=[r[0] for r in refs], x=[r[1] for r in refs], orientation="h",
-                                   marker_color=[r[2] for r in refs], text=[f"{r[1]:.1f}" for r in refs],
-                                   textposition="outside"))
-            clean_fig(fig, 300).update_yaxes(autorange="reversed")
-            st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
-    with c2:
-        with panel():
-            st.markdown("<div class='sw-panel-h'>Verdict</div>", unsafe_allow_html=True)
-            st.markdown(
-                "Published Sentinel-1 InSAR and GPS studies report **3.2–16 cm/yr** across the Quetta valley, "
-                "fastest in the centre. SinkWatch finds the **same hotspot at the same rates** from only "
-                "120 days of NISAR data.\n\n"
-                "Ascending/descending comparisons in the literature show negligible horizontal motion, "
-                "supporting the line-of-sight → vertical conversion.")
-            st.markdown("<div class='sw-note'>Kakar et al. (2025) Natural Hazards, doi:10.1007/s11069-025-07226-y · "
-                        "Kakar et al. (2024) Remote Sensing 16(9):1521</div>", unsafe_allow_html=True)
 
-# ================================================================== METHOD
-with tab_method:
-    steps = [
-        ("1 · Data", "9 consecutive NISAR L-band GUNW interferograms (12-day pairs), track 041 ascending, "
-                     "17 Jun → 15 Oct 2026."),
-        ("2 · Streaming", "Only the Quetta window is read from NASA's ASF archive (earthaccess + h5py). "
-                          "No 20 GB download."),
-        ("3 · Ionosphere", "NISAR's split-spectrum ionosphere phase screen is subtracted from every pair."),
-        ("4 · Troposphere + tilt", "Fit a·row + b·col + c·elevation + d against Copernicus GLO-30, outside an "
-                                   "8 km circle around the city, and remove it."),
-        ("5 · Stack", "Sum the 9 cleaned pairs. Displacement = −λ/4π · phase, λ = 24.2 cm."),
-        ("6 · Vertical", "Line-of-sight ÷ cos(45.1°). Valley floor = elevation < 1,900 m and slope < 5°."),
-        ("7 · Exposure", "WorldPop 2020 people summed on the same 80 m grid."),
-    ]
-    cols = st.columns(4)
-    for i, (h, txt) in enumerate(steps):
-        with cols[i % 4]:
-            with panel():
-                st.markdown(f"<div class='sw-panel-h' style='color:{ACCENT}'>{h}</div>"
-                            f"<div style='font-size:.88rem;color:#344054'>{txt}</div>", unsafe_allow_html=True)
+# ------------------------------------------------------------------ about + footer
+H(f"""
+<div class="sec" id="about"><div class="wrap">
+  <div class="kicker">What's next</div>
+  <div class="h2">From one city to every city</div>
+  <div class="timeline">
+    <div class="tl"><div class="w">Now</div><div class="x">Quetta from NISAR, plus <i>Analyze your data</i> for any velocity map.</div></div>
+    <div class="tl"><div class="w">Next</div><div class="x">Jakarta, Tehran and Mexico City through the same pipeline.</div></div>
+    <div class="tl"><div class="w">Then</div><div class="x">Pick any city on Earth; SinkWatch processes the latest NISAR pass automatically.</div></div>
+    <div class="tl"><div class="w">Later</div><div class="x">Alerts when a neighbourhood starts sinking faster.</div></div>
+  </div>
 
-# ================================================================== ABOUT
-with tab_about:
-    a1, a2 = st.columns([1.3, 1])
-    with a1:
-        with panel():
-            st.markdown("<div class='sw-panel-h'>Why it matters</div>", unsafe_allow_html=True)
-            st.markdown(
-                "Groundwater pumping is making cities sink, from Jakarta and Mexico City to Tehran and Quetta. "
-                "Buildings crack, pipes break and floods worsen, usually unnoticed until it is too late. "
-                "Most cities have no ground monitoring network.\n\n"
-                "NISAR images every place on Earth every 12 days, free and open. SinkWatch turns that radar "
-                "into a map a city engineer or disaster agency can act on, and the same pipeline works for "
-                "any city NISAR covers.")
-    with a2:
-        with panel():
-            st.markdown("<div class='sw-panel-h'>Limitations</div>", unsafe_allow_html=True)
-            st.markdown(
-                "- Provisional NISAR products (calibrated, still being validated)\n"
-                "- 120-day record; annual rate is an estimate\n"
-                "- One viewing direction; vertical motion assumed\n"
-                "- Some residual atmosphere away from the valley\n"
-                "- Exposure ≠ damage")
-        with panel():
-            st.markdown("<div class='sw-panel-h'>Roadmap</div>", unsafe_allow_html=True)
-            st.markdown(
-                "- **Now:** Quetta from NISAR, plus *Analyze your data* for any velocity GeoTIFF\n"
-                "- **Next:** more cities (Jakarta, Tehran, Mexico City) run through the same pipeline\n"
-                "- **Then:** pick any city on Earth and SinkWatch processes the latest NISAR pass automatically\n"
-                "- **Later:** alerts when a neighbourhood starts sinking faster")
-        st.markdown("<div class='sw-note'>Built solo for NASA Space Apps Challenge 2026 · Dancing with the SARs · "
-                    "Data: NASA-ISRO NISAR (ASF DAAC), Copernicus GLO-30 DEM, WorldPop 2020. "
-                    "Code and visuals created with SI assistance (Claude by Anthropic); all results come from real NISAR data.</div>",
-                    unsafe_allow_html=True)
+  <div class="foot"><div class="row">
+    <div><div class="brand" style="font-size:16px"><img src="{icon_src}" alt="" style="width:28px;height:28px">SinkWatch</div>
+      <div style="margin-top:10px">Built solo by Muhammad Asif (Pakistan) for the NASA Space Apps Challenge 2026 · Dancing with the SARs.</div>
+      <div class="si">Code and visuals created with SI assistance (Claude by Anthropic); all results come from real NISAR data.</div></div>
+    <div style="max-width:520px">
+      <span class="chip">NASA-ISRO NISAR · L2 GUNW (provisional)</span><span class="chip">Track 041 asc · frame 017 · 80 m</span>
+      <span class="chip">{fmt_date(dates[0], '%d %b')} → {fmt_date(dates[-1])}</span><span class="chip">Copernicus GLO-30 DEM</span>
+      <span class="chip">WorldPop 2020</span><span class="chip">Esri basemaps</span>
+      <div style="margin-top:8px"><a href="https://github.com/AsifMarwat/SinkWatch">GitHub</a> · <a href="https://youtu.be/uisDu4dTS_8">Demo video</a></div>
+    </div>
+  </div></div>
+</div></div>
+""")
