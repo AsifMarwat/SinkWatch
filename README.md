@@ -4,7 +4,7 @@
 
 **NASA Space Apps Challenge 2026 · Challenge: _Dancing with the SARs_**
 
-🌐 **Live app:** https://sinkwatch.streamlit.app · 🎬 **30-second demo:** https://www.youtube.com/watch?v=qQgWt6jhvS8
+🌐 **Live app:** https://sinkwatch.streamlit.app · 🎬 **30-second demo:** https://youtu.be/uisDu4dTS_8
 
 SinkWatch uses NASA-ISRO **NISAR** L-band radar to measure where a city is sinking, how fast it is sinking, and how many people live on that ground. The first city it covers is **Quetta, Pakistan**, one of the fastest-sinking cities in the world. Groundwater is pumped out faster than it refills, so the soft valley sediments compact and the ground drops.
 
