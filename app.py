@@ -18,6 +18,7 @@ from branca.element import MacroElement
 from jinja2 import Template
 import json
 from streamlit_folium import st_folium
+import streamlit.components.v1 as components
 import plotly.graph_objects as go
 from pyproj import Transformer
 from PIL import Image
@@ -478,8 +479,8 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-tab_map, tab_exp, tab_val, tab_method, tab_about = st.tabs(
-    ["Map", "Exposure", "Validation", "Method", "About"])
+tab_map, tab_exp, tab_up, tab_val, tab_method, tab_about = st.tabs(
+    ["Map", "Exposure", "Analyze your data", "Validation", "Method", "About"])
 
 # ================================================================== MAP
 with tab_map:
@@ -617,6 +618,203 @@ with tab_exp:
                     "80 m grid. Exposure shows who lives on fast-sinking ground; it is not a building-damage model.</div>",
                     unsafe_allow_html=True)
 
+# ================================================================== ANALYZE YOUR DATA
+SAMPLE_TIF = "app_data/sample_quetta_velocity_cm_yr.tif"
+UNIT_TO_CM = {"cm/yr": 1.0, "mm/yr": 0.1, "m/yr": 100.0}
+
+
+@st.cache_data(max_entries=4, show_spinner="Reading your map…")
+def analyze_raster(raw, unit, flip, inc_deg, max_px=1200):
+    """Read any single-band velocity GeoTIFF, convert to vertical cm/yr, and reproject for display."""
+    import rasterio
+    from rasterio.enums import Resampling
+    from rasterio.warp import calculate_default_transform, reproject
+    from rasterio.transform import Affine
+
+    with rasterio.MemoryFile(raw) as mf, mf.open() as src:
+        if src.crs is None:
+            raise ValueError("This file has no map projection (CRS), so SinkWatch can't place it on the map.")
+        f = max(src.width / max_px, src.height / max_px, 1.0)
+        h, w = int(round(src.height / f)), int(round(src.width / f))
+        arr = src.read(1, out_shape=(h, w), resampling=Resampling.average, masked=True)
+        arr = np.ma.filled(arr.astype("float64"), np.nan)
+        tr = src.transform * Affine.scale(src.width / w, src.height / h)
+        crs = src.crs
+
+    arr[~np.isfinite(arr)] = np.nan
+    vel = arr * UNIT_TO_CM[unit]
+    if flip:
+        vel = -vel
+    if inc_deg:
+        vel = vel / np.cos(np.radians(inc_deg))
+    if np.isfinite(vel).sum() < 10:
+        raise ValueError("The file has almost no valid pixels.")
+
+    # pixel area in km² (works for metre and degree grids)
+    if crs.is_geographic:
+        lat = tr.f + (np.arange(h) + 0.5) * tr.e
+        row_km2 = abs(tr.a * tr.e) * (111.32 ** 2) * np.cos(np.radians(lat))
+        px_km2 = np.repeat(row_km2[:, None], w, axis=1)
+    else:
+        px_km2 = np.full((h, w), abs(tr.a * tr.e) / 1e6)
+
+    # reproject to WGS84 for the web map
+    dst_tr, dw, dh = calculate_default_transform(crs, "EPSG:4326", w, h,
+                                                 *rasterio.transform.array_bounds(h, w, tr))
+    vel_ll = np.full((dh, dw), np.nan)
+    reproject(vel, vel_ll, src_transform=tr, src_crs=crs, dst_transform=dst_tr, dst_crs="EPSG:4326",
+              resampling=Resampling.nearest, src_nodata=np.nan, dst_nodata=np.nan)
+    s, wst, n, e = (dst_tr.f + dh * dst_tr.e, dst_tr.c, dst_tr.f, dst_tr.c + dw * dst_tr.a)
+    return {"vel": vel, "vel_ll": vel_ll, "px_km2": px_km2, "tr": tuple(tr)[:6], "crs": crs.to_wkt(),
+            "bounds": (s, wst, n, e), "shape": (h, w), "crs_name": crs.to_string()}
+
+
+class ClickInspect(MacroElement):
+    """Click anywhere on an uploaded map to see the value at that point (runs in the browser)."""
+    _template = Template("""
+{% macro script(this, kwargs) %}
+(function(){
+              var map = {{ this._parent.get_name() }}, G = {{ this.grid }}, S={{ this.s }}, W={{ this.w }}, N={{ this.n }}, E={{ this.e }};
+              var ny = G.length, nx = G[0].length;
+              map.on('click', function(ev){
+                var la = ev.latlng.lat, lo = ev.latlng.lng, msg;
+                if (la<S||la>N||lo<W||lo>E){ msg = 'Outside your map'; }
+                else {
+                  var r = Math.min(ny-1, Math.floor((N-la)/(N-S)*ny));
+                  var c = Math.min(nx-1, Math.floor((lo-W)/(E-W)*nx));
+                  var v = G[r][c];
+                  if (v===null){ msg = 'No data here'; }
+                  else {
+                    var word = v < -0.5 ? 'Sinking' : (v > 0.5 ? 'Rising' : 'Stable');
+                    var col = v < -0.5 ? '#d92d20' : (v > 0.5 ? '#2563eb' : '#475467');
+                    msg = '<div style="font:600 15px system-ui;color:'+col+'">'+(v>0?'+':'')+v.toFixed(1).replace('-','\u2212')+' cm/yr</div>'+
+                          '<div style="font:12px system-ui;color:#475467">'+word+' · '+la.toFixed(4)+', '+lo.toFixed(4)+'</div>';
+                  }
+                }
+                L.popup().setLatLng(ev.latlng).setContent(msg).openOn(map);
+              });
+            })();
+{% endmacro %}
+""")
+
+    def __init__(self, grid_json, s, w, n, e):
+        super().__init__()
+        self._name = "ClickInspect"
+        self.grid, self.s, self.w, self.n, self.e = grid_json, s, w, n, e
+
+
+with tab_up:
+    st.markdown("<div class='sw-note' style='margin-bottom:.6rem'>Bring your own ground-motion map: any "
+                "single-band GeoTIFF of velocity (from the SinkWatch pipeline, ASF HyP3, LiCSBAS, MintPy…). "
+                "SinkWatch maps it, measures the sinking area and lets you inspect any point. "
+                "Files stay in your browser session and are not stored.</div>", unsafe_allow_html=True)
+    u_left, u_centre, u_right = st.columns([0.95, 2.7, 1.25], gap="small")
+    with u_left:
+        with panel():
+            st.markdown("<div class='sw-panel-h'>1 · Data</div>", unsafe_allow_html=True)
+            src_mode = st.radio("Source", ["Try the Quetta sample", "Upload a GeoTIFF"], label_visibility="collapsed")
+            raw = None
+            if src_mode == "Upload a GeoTIFF":
+                up = st.file_uploader("Velocity GeoTIFF", type=["tif", "tiff"], label_visibility="collapsed")
+                if up is not None:
+                    raw = up.getvalue()
+            else:
+                try:
+                    with open(SAMPLE_TIF, "rb") as fh:
+                        raw = fh.read()
+                except OSError:
+                    st.warning("Sample file not found.")
+            try:
+                with open(SAMPLE_TIF, "rb") as fh:
+                    st.download_button("Download sample .tif", fh.read(), file_name="sample_quetta_velocity_cm_yr.tif",
+                                       mime="image/tiff", width="stretch")
+            except OSError:
+                pass
+        with panel():
+            st.markdown("<div class='sw-panel-h'>2 · Units</div>", unsafe_allow_html=True)
+            unit = st.selectbox("Velocity units", list(UNIT_TO_CM), index=0)
+            flip = st.checkbox("Positive values mean sinking", value=False,
+                               help="SinkWatch uses negative = sinking. Tick this if your file uses the opposite sign.")
+            is_los = st.checkbox("Values are line-of-sight (convert to vertical)", value=False)
+            inc = st.slider("Incidence angle (°)", 20.0, 50.0, 39.0, 0.5) if is_los else 0.0
+        with panel():
+            st.markdown("<div class='sw-panel-h'>3 · Display</div>", unsafe_allow_html=True)
+            u_thr = st.slider("Hide motion below (cm/yr) ", 0.0, 10.0, 2.0, 0.5)
+            u_op = st.slider("Opacity ", 0.2, 1.0, 0.75, 0.05)
+            u_sink = st.checkbox("Sinking only ", value=True)
+
+    res, err = None, None
+    if raw is not None:
+        try:
+            res = analyze_raster(raw, unit, flip, inc)
+        except Exception as ex:  # keep the rest of the app alive whatever the file is
+            err = str(ex) or "Could not read this file. Is it a GeoTIFF?"
+
+    with u_centre:
+        if err:
+            st.error(err)
+        if res is None:
+            with panel():
+                st.markdown("<div class='sw-panel-h'>Waiting for data</div>"
+                            "<div class='sw-note'>Choose the sample or upload a GeoTIFF on the left.</div>",
+                            unsafe_allow_html=True)
+        else:
+            s, w, n, e = res["bounds"]
+            tile = ("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}"
+                    if DARK else
+                    "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}")
+            span = max(e - w, (n - s) * 1.3, 1e-4)
+            zoom = int(np.clip(np.floor(np.log2(800 * 360 / (256 * span))), 2, 16))
+            um = folium.Map(location=[(s + n) / 2, (w + e) / 2], zoom_start=zoom, tiles=None, control_scale=True)
+            folium.TileLayer(tiles=tile, attr="Esri, HERE, Garmin, OpenStreetMap contributors").add_to(um)
+            shown = np.where(res["vel_ll"] > 0, np.nan, res["vel_ll"]) if u_sink else res["vel_ll"]
+            img = Image.fromarray(colorize(shown, u_thr, u_op), "RGBA")
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            folium.raster_layers.ImageOverlay(image="data:image/png;base64," + base64.b64encode(buf.getvalue()).decode(),
+                                              bounds=[[s, w], [n, e]], interactive=False).add_to(um)
+            folium.Rectangle([[s, w], [n, e]], color="#667085", weight=1, fill=False, dash_array="4").add_to(um)
+            Fullscreen().add_to(um)
+            MousePosition(position="bottomright", separator=" · ", num_digits=4, prefix="").add_to(um)
+            # click-to-inspect runs inside the map (works in any tab, no server round-trip)
+            g = res["vel_ll"]
+            stp = max(1, int(np.ceil(max(g.shape) / 300)))
+            gs = g[::stp, ::stp]
+            grid = [[None if not np.isfinite(x) else round(float(x), 1) for x in row] for row in gs]
+            ClickInspect(json.dumps(grid), s, w, n, e).add_to(um)
+            components.html(um.get_root().render(), height=560)
+            h, wd = res["shape"]
+            st.markdown(f"<div class='sw-status'><span><b>CRS</b> {res['crs_name']}</span>"
+                        f"<span><b>Grid</b> {wd} × {h} px</span><span><b>Units</b> converted to vertical cm/yr</span>"
+                        "<span><b>Tip</b> click anywhere on the map to read the speed</span></div>", unsafe_allow_html=True)
+
+    with u_right:
+        if res is not None:
+            v, pa = res["vel"], res["px_km2"]
+            ok = np.isfinite(v)
+            a5 = float(pa[ok & (v <= -5)].sum())
+            a10 = float(pa[ok & (v <= -10)].sum())
+            with panel():
+                st.markdown("<div class='sw-panel-h'>Summary</div>", unsafe_allow_html=True)
+                stat_rows([
+                    ("Fastest 1%", f"{abs(min(np.nanpercentile(v, 1), 0)):.1f} cm/yr", "hot"),
+                    ("Median motion", f"{np.nanmedian(v):+.1f} cm/yr", ""),
+                    ("Area sinking > 5 cm/yr", f"{a5:,.1f} km²", "hot"),
+                    ("Area sinking > 10 cm/yr", f"{a10:,.1f} km²", ""),
+                    ("Area covered", f"{float(pa[ok].sum()):,.0f} km²", ""),
+                ])
+            with panel():
+                st.markdown("<div class='sw-panel-h'>Inspector</div><div class='sw-note'>Click anywhere on the map: "
+                            "the vertical speed and status pop up right on the point.</div>", unsafe_allow_html=True)
+            with panel():
+                st.markdown("<div class='sw-panel-h'>Distribution</div>", unsafe_allow_html=True)
+                vv = np.clip(v[ok], -VMAX, VMAX)
+                fig = go.Histogram(x=vv, nbinsx=40, marker_color=RED)
+                fig = go.Figure(fig)
+                fig.add_vline(x=0, line_dash="dot", line_color="#98a2b3")
+                clean_fig(fig, 200).update_xaxes(title_text="cm/yr (negative = sinking)", title_font=dict(size=10))
+                st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+
 # ================================================================== VALIDATION
 with tab_val:
     c1, c2 = st.columns([1.5, 1])
@@ -691,6 +889,13 @@ with tab_about:
                 "- One viewing direction; vertical motion assumed\n"
                 "- Some residual atmosphere away from the valley\n"
                 "- Exposure ≠ damage")
+        with panel():
+            st.markdown("<div class='sw-panel-h'>Roadmap</div>", unsafe_allow_html=True)
+            st.markdown(
+                "- **Now:** Quetta from NISAR, plus *Analyze your data* for any velocity GeoTIFF\n"
+                "- **Next:** more cities (Jakarta, Tehran, Mexico City) run through the same pipeline\n"
+                "- **Then:** pick any city on Earth and SinkWatch processes the latest NISAR pass automatically\n"
+                "- **Later:** alerts when a neighbourhood starts sinking faster")
         st.markdown("<div class='sw-note'>Built solo for NASA Space Apps Challenge 2026 · Dancing with the SARs · "
                     "Data: NASA-ISRO NISAR (ASF DAAC), Copernicus GLO-30 DEM, WorldPop 2020.</div>",
                     unsafe_allow_html=True)
